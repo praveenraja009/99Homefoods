@@ -1,16 +1,16 @@
-FROM python:3.13-slim
+# Use the full python image instead of "slim" 
+# It's a larger download, but it PRE-INCLUDES build tools
+# so your small server doesn't have to compile them!
+FROM python:3.13
 
 WORKDIR /app
 
-# Install system dependencies for bcrypt
-RUN apt-get update && apt-get install -y build-essential libffi-dev && rm -rf /var/lib/apt/lists/*
-
+# No need for apt-get install build-essential here, it's built-in
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Expose FastAPI port
 EXPOSE 8000
 
-CMD ["uvicorn", "main.py:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
