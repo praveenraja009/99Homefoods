@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from passlib.context import CryptContext
 import sqlite3
 import hashlib
 import bcrypt
@@ -25,7 +24,7 @@ app.add_middleware(
 )
 
 # Password Hashing Setup
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 class User(BaseModel):
     email: str
@@ -39,26 +38,25 @@ def init_db():
 
 init_db()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
-
-def get_password_hash(password: str):
-    # 1. SHA-256 hash first (to allow infinite length)
-    sha_hash = hashlib.sha256(password.encode()).digest() # Use .digest() for raw bytes
+def get_password_hash(password: str) -> str:
+    # 1. SHA-256 pre-hash: Converts any length password into a 64-char hex string
+    # This prevents the 72-character truncation in bcrypt
+    sha256_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
     
-    # 2. Use the official 'bcrypt' library directly
-    # Generate a salt and hash the SHA-256 bytes
+    # 2. Bcrypt: Uses the SHA-256 hex string as the input
     salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(sha_hash, salt)
-    
-    # Return as a string so it can be saved in SQLite
-    return hashed.decode('utf-8')
+    hashed_password = bcrypt.hashpw(sha256_hash.encode('utf-8'), salt)
+    return hashed_password.decode('utf-8')
 
-def verify_password(plain_password: str, hashed_password: str):
-    # 1. SHA-256 the incoming attempt
-    sha_hash = hashlib.sha256(plain_password.encode()).digest()
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # 1. Re-hash the incoming plain password with SHA-256
+    sha256_hash = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
     
-    # 2. Verify using the direct bcrypt library
-    return bcrypt.checkpw(sha_hash, hashed_password.encode('utf-8'))
+    # 2. Check the SHA-256 hex against the stored bcrypt hash
+    return bcrypt.checkpw(
+        sha256_hash.encode('utf-8'), 
+        hashed_password.encode('utf-8')
+    )
 
 def create_access_token(data: dict):
     to_encode = data.copy()
